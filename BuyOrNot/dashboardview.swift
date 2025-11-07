@@ -1,15 +1,10 @@
-//
-//  dashboardview.swift
-//  BuyOrNot
-//
-//  Created by Eagle Chen on 11/7/25.
-//
-
 import SwiftUI
 
 struct DashboardView: View {
     let decisions: [Decision]
     let expenses: [ExpenseItem]
+    let savedAmount: Double      // ✅ 新增
+    let userName: String
     var onNewDecision: () -> Void
     var onShowExpenses: () -> Void
     var onAvatarTap: () -> Void
@@ -18,9 +13,12 @@ struct DashboardView: View {
     private var totalSpent: Double {
         expenses.reduce(0) { $0 + $1.price }
     }
-    private var totalSaved: Double {
-        // 这里随便放个静态值，你后面接后端/本地计算再改
-        1500
+    
+    private var initials: String {
+        let parts = userName.split(separator: " ")
+        let first = parts.first?.first.map(String.init) ?? ""
+        let last = parts.dropFirst().first?.first.map(String.init) ?? ""
+        return (first + last).uppercased()
     }
     
     var body: some View {
@@ -56,40 +54,38 @@ struct DashboardView: View {
                             Text("Saved")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
-                            Text("$\(totalSaved, specifier: "%.2f")")
+                            Text("$\(savedAmount, specifier: "%.2f")")
                                 .font(.title3).bold()
                                 .foregroundStyle(.red)
                         }
                     }
                     .padding(.horizontal, 8)
                     
-                    // 两个主卡片
                     HStack(alignment: .top, spacing: 20) {
-                        Button {
-                            onNewDecision()
-                        } label: {
+                        Button { onNewDecision() } label: {
                             GradientCardView(
                                 title: "New Decision",
                                 systemImage: "plus",
-                                colors: [Color(red: 0.95, green: 0.88, blue: 1.0),
-                                         Color(red: 0.87, green: 0.84, blue: 1.0)]
+                                colors: [
+                                    Color(red: 0.95, green: 0.88, blue: 1.0),
+                                    Color(red: 0.87, green: 0.84, blue: 1.0)
+                                ]
                             )
                         }
                         
-                        Button {
-                            onShowExpenses()
-                        } label: {
+                        Button { onShowExpenses() } label: {
                             GradientCardView(
                                 title: "Expenses",
                                 subtitle: "\(expenses.count) items",
                                 systemImage: "dollarsign",
-                                colors: [Color(red: 0.84, green: 0.99, blue: 0.90),
-                                         Color(red: 0.78, green: 0.93, blue: 0.85)]
+                                colors: [
+                                    Color(red: 0.84, green: 0.99, blue: 0.90),
+                                    Color(red: 0.78, green: 0.93, blue: 0.85)
+                                ]
                             )
                         }
                     }
                     
-                    // 底下的决策卡片
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(decisions) { decision in
                             DecisionCardView(decision: decision) {
@@ -121,27 +117,24 @@ struct DashboardView: View {
                         .font(.system(size: 20, weight: .bold))
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("SmartBuy")
+                    Text("BuyOrNot")
                         .font(.title3).bold()
                         .foregroundStyle(.black.opacity(0.8))
-                    Text(" ")
-                        .font(.caption2)
-                        .foregroundStyle(.clear)
                 }
             }
-            
             Spacer()
-            
             Button {
                 onAvatarTap()
             } label: {
                 Circle()
                     .fill(
-                        LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        LinearGradient(colors: [.purple, .pink],
+                                       startPoint: .topLeading,
+                                       endPoint: .bottomTrailing)
                     )
                     .frame(width: 44, height: 44)
                     .overlay(
-                        Text("JD")
+                        Text(initials)
                             .font(.footnote).bold()
                             .foregroundStyle(.white)
                     )
