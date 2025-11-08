@@ -117,6 +117,27 @@ struct AccountView: View {
                             .cornerRadius(20)
                         }
                         
+                        // 登出按钮
+                        Button {
+                            logout()
+                        } label: {
+                            HStack {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                Text("Log Out")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(16)
+                            .background(.red.opacity(0.1))
+                            .foregroundStyle(.red)
+                            .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(.red.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .padding(.top, 20)
+                        
                         Spacer(minLength: 30)
                     }
                     .padding(20)
@@ -174,6 +195,16 @@ struct AccountView: View {
                 print("Error saving profile: \(error)")
             }
             isSaving = false
+        }
+    }
+    
+    // 登出
+    private func logout() {
+        do {
+            try authService.signOut()
+            dismiss() // 关闭账户页面
+        } catch {
+            print("Error signing out: \(error)")
         }
     }
 }
