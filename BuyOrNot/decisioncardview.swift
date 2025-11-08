@@ -19,8 +19,8 @@ struct DecisionCardView: View {
                 RoundedRectangle(cornerRadius: 28)
                     .fill(
                         LinearGradient(colors: [
-                            Color(red: 0.96, green: 0.75, blue: 0.80),
-                            Color(red: 0.98, green: 0.70, blue: 0.75)
+                            Color.pink,
+                            Color.purple
                         ], startPoint: .topLeading, endPoint: .bottomTrailing)
                     )
                     .frame(height: 140)

@@ -25,8 +25,7 @@ struct AccountView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(colors: [.white, Color(red: 0.92, green: 0.93, blue: 1.0)],
-                               startPoint: .top, endPoint: .bottom)
+                Color(uiColor: .systemBackground)
                     .ignoresSafeArea()
                 
                 ScrollView {
@@ -42,7 +41,7 @@ struct AccountView: View {
                                         .font(.system(size: 38, weight: .bold))
                                 )
                             Circle()
-                                .fill(.white)
+                                .fill(Color(uiColor: .secondarySystemBackground))
                                 .frame(width: 34, height: 34)
                                 .overlay(
                                     Image(systemName: "camera.fill")
@@ -55,7 +54,7 @@ struct AccountView: View {
                             Text("Name").font(.footnote).bold()
                             TextField("Name", text: $name)
                                 .padding(14)
-                                .background(.white)
+                                .background(Color(uiColor: .secondarySystemBackground))
                                 .cornerRadius(16)
                         }
                         
@@ -63,7 +62,7 @@ struct AccountView: View {
                             Text("Email").font(.footnote).bold()
                             TextField("Email", text: $email)
                                 .padding(14)
-                                .background(.white)
+                                .background(Color(uiColor: .secondarySystemBackground))
                                 .cornerRadius(16)
                                 .keyboardType(.emailAddress)
                         }
@@ -113,7 +112,7 @@ struct AccountView: View {
                                 }
                             }
                             .padding()
-                            .background(.white)
+                            .background(Color(uiColor: .secondarySystemBackground))
                             .cornerRadius(20)
                         }
                         
@@ -154,9 +153,9 @@ struct AccountView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .background(.white)
+                    .background(Color(uiColor: .secondarySystemBackground))
                     .cornerRadius(12)
-                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    .shadow(color: Color.primary.opacity(0.1), radius: 10, x: 0, y: 5)
                     .padding(.top, 20)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -170,7 +169,7 @@ struct AccountView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
-                            .foregroundStyle(.black.opacity(0.7))
+                            .foregroundStyle(Color.primary)
                     }
                 }
             }

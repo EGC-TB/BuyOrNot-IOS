@@ -18,8 +18,7 @@ struct LoginView: View {
     
     var body: some View {
         ZStack {
-            LinearGradient(colors: [.white, Color(red: 0.92, green: 0.93, blue: 1.0)],
-                          startPoint: .top, endPoint: .bottom)
+            Color(uiColor: .systemBackground)
                 .ignoresSafeArea()
             
             ScrollView {
@@ -152,9 +151,9 @@ struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(14)
-            .background(.white)
+            .background(Color(uiColor: .secondarySystemBackground))
             .cornerRadius(12)
-            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+            .shadow(color: Color.primary.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 }
 

@@ -437,8 +437,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 975GWFYMX5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "BuyOrNot needs access to your camera to take photos of products for automatic recognition.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "BuyOrNot needs access to save photos to your library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "BuyOrNot needs access to your photo library to select product images for automatic recognition.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -449,7 +453,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = eagle.BuyOrNot;
+				PRODUCT_BUNDLE_IDENTIFIER = neoAIATL.BuyOrNot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -464,8 +468,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 975GWFYMX5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "BuyOrNot needs access to your camera to take photos of products for automatic recognition.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "BuyOrNot needs access to save photos to your library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "BuyOrNot needs access to your photo library to select product images for automatic recognition.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -476,7 +484,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = eagle.BuyOrNot;
+				PRODUCT_BUNDLE_IDENTIFIER = neoAIATL.BuyOrNot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

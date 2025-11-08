@@ -25,11 +25,8 @@ struct DashboardView: View {
     
     var body: some View {
         ZStack {
-            LinearGradient(colors: [
-                Color(red: 0.97, green: 0.92, blue: 1.0),
-                Color(red: 0.88, green: 0.93, blue: 1.0)
-            ], startPoint: .topLeading, endPoint: .bottomTrailing)
-            .ignoresSafeArea()
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -41,7 +38,7 @@ struct DashboardView: View {
                     
                     Text("My Decisions")
                         .font(.title2).bold()
-                        .foregroundStyle(.black.opacity(0.8))
+                        .foregroundStyle(Color.primary)
                     
                     HStack(spacing: 24) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -73,8 +70,8 @@ struct DashboardView: View {
                                 title: "New Decision",
                                 systemImage: "plus",
                                 colors: [
-                                    Color(red: 0.95, green: 0.88, blue: 1.0),
-                                    Color(red: 0.87, green: 0.84, blue: 1.0)
+                                    Color.purple,
+                                    Color.pink
                                 ]
                             )
                         }
@@ -85,8 +82,8 @@ struct DashboardView: View {
                                 subtitle: "\(expenses.count) items",
                                 systemImage: "dollarsign",
                                 colors: [
-                                    Color(red: 0.84, green: 0.99, blue: 0.90),
-                                    Color(red: 0.78, green: 0.93, blue: 0.85)
+                                    Color.green,
+                                    Color.mint
                                 ]
                             )
                         }
@@ -124,7 +121,7 @@ struct DashboardView: View {
                 }
                 Text("BuyOrNot")
                     .font(.title3).bold()
-                    .foregroundStyle(.black.opacity(0.8))
+                    .foregroundStyle(Color.primary)
             }
             
             Spacer()
@@ -142,7 +139,7 @@ struct DashboardView: View {
                             .font(.footnote).bold()
                             .foregroundStyle(.white)
                     )
-                    .shadow(color: .black.opacity(0.08), radius: 5, x: 0, y: 4)
+                    .shadow(color: Color.primary.opacity(0.08), radius: 5, x: 0, y: 4)
             }
         }
     }

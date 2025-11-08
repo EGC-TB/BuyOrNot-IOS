@@ -23,6 +23,9 @@ struct RootView: View {
     @State private var isLoading: Bool = true
     @State private var hasLoadedInitialData: Bool = false
     
+    // 存储决策关联的图片
+    @State private var decisionImages: [UUID: UIImage] = [:]
+    
     var body: some View {
         NavigationStack {
             DashboardView(
@@ -38,8 +41,12 @@ struct RootView: View {
                 }
             )
             .sheet(isPresented: $showNewDecision) {
-                DecisionFormView { newDecision in
+                DecisionFormViewWrapper { newDecision, image in
                     decisions.insert(newDecision, at: 0)
+                    // 保存图片和决策的关联
+                    if let image = image {
+                        decisionImages[newDecision.id] = image
+                    }
                     activeDecision = newDecision
                     // 保存到Firebase
                     if let userId = authService.currentUserId {
@@ -66,6 +73,7 @@ struct RootView: View {
             .sheet(item: $activeDecision) { decision in
                 ChatBotView(
                     decision: decision,
+                    initialImage: decisionImages[decision.id],
                     onBuy: { updated in
                         applyDecisionChange(updated, newStatus: .purchased)
                     },

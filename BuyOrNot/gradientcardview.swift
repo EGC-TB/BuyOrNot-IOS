@@ -25,11 +25,11 @@ struct GradientCardView: View {
             
             // 左上角图标
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.9))
+                .fill(.white.opacity(0.25))
                 .frame(width: 46, height: 46)
                 .overlay(
                     Image(systemName: systemImage)
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(.white)
                         .font(.system(size: 20, weight: .bold))
                 )
                 .padding(.top, 14)
@@ -40,11 +40,11 @@ struct GradientCardView: View {
                 Spacer().frame(height: 60)   // 给图标让位置
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(.black.opacity(0.8))
+                    .foregroundStyle(.white)
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(.black.opacity(0.5))
+                        .foregroundStyle(.white.opacity(0.9))
                 }
                 Spacer()
             }

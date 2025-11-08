@@ -1,31 +1,54 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 protocol ChatService {
-    func send(message: String, for decision: Decision) async throws -> String
+    func send(message: String, image: UIImage?, for decision: Decision) async throws -> String
 }
-import SwiftUI
 
 private let GOOGLE_API_KEY = "AIzaSyDPc9Lo6WiYgkXaFCgjKMaX_NEQ7gl4-6g"
 
 struct GoogleChatService: ChatService {
-    func send(message: String, for decision: Decision) async throws -> String {
-
+    func send(message: String, image: UIImage?, for decision: Decision) async throws -> String {
         let url = URL(string:
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\(GOOGLE_API_KEY)"
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=\(GOOGLE_API_KEY)"
         )!
 
         let systemPrompt = """
-        You are a friendly personal finance advisor helping the user decide whether to buy a product. Respond in a conversational, middle-length format (about two sentences) — concise, polite, and direct. Use the user’s financial profile and goals to guide your reasoning. Ask thoughtful questions about whether the purchase is necessary, aligns with their goals, and reflects genuine needs rather than impulse. Avoid giving direct commands; instead, help the user reach their own decision logically. When asked to make a decision, base it on the user’s information and recent conversation context, and give a concrete answer (Buy Or Not). Only respond to topics relevant to their financial situation and goals, ignoring unrelated requests.
+        You are a friendly personal finance advisor helping the user decide whether to buy a product. Respond in a conversational, middle-length format (about two sentences) — concise, polite, and direct. Use the user's financial profile and goals to guide your reasoning. Ask thoughtful questions about whether the purchase is necessary, aligns with their goals, and reflects genuine needs rather than impulse. Avoid giving direct commands; instead, help the user reach their own decision logically. When asked to make a decision, base it on the user's information and recent conversation context, and give a concrete answer (Buy Or Not). Only respond to topics relevant to their financial situation and goals, ignoring unrelated requests.
         """
+
+        // 构建parts数组
+        var parts: [[String: Any]] = [
+            ["text": systemPrompt],
+            ["text": "Item: \(decision.title), Price: \(decision.price)"]
+        ]
+        
+        // 如果有图片，添加图片到parts
+        if let image = image {
+            // 压缩并编码图片
+            let maxDimension: CGFloat = 1024
+            let processedImage = resizeImage(image, maxDimension: maxDimension)
+            guard let imageData = processedImage.jpegData(compressionQuality: 0.8),
+                  let base64Image = imageData.base64EncodedString() as String? else {
+                throw NSError(domain: "ImageError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to encode image"])
+            }
+            
+            parts.append([
+                "inlineData": [
+                    "mimeType": "image/jpeg",
+                    "data": base64Image
+                ]
+            ])
+        }
+        
+        // 添加用户消息
+        parts.append(["text": message])
 
         let payload: [String: Any] = [
             "contents": [
                 [
-                    "parts": [
-                        ["text": systemPrompt],
-                        ["text": "Item: \(decision.title), Price: \(decision.price)"],
-                        ["text": message]
-                    ]
+                    "parts": parts
                 ]
             ]
         ]
@@ -37,7 +60,12 @@ struct GoogleChatService: ChatService {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw NSError(domain: "APIError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
 
         let result = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
@@ -52,20 +80,51 @@ struct GoogleChatService: ChatService {
 
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+    
+    // 调整图片大小
+    private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        
+        if size.width <= maxDimension && size.height <= maxDimension {
+            return image
+        }
+        
+        let ratio = min(maxDimension / size.width, maxDimension / size.height)
+        let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return resizedImage ?? image
+    }
 }
 
 
 struct ChatBotView: View {
     let decision: Decision
+    let initialImage: UIImage?
     var service: ChatService = GoogleChatService()
     
     // 👇 外面要的两个回调
     var onBuy: (Decision) -> Void
     var onSkip: (Decision) -> Void
     
+    init(decision: Decision, initialImage: UIImage? = nil, onBuy: @escaping (Decision) -> Void, onSkip: @escaping (Decision) -> Void) {
+        self.decision = decision
+        self.initialImage = initialImage
+        self.onBuy = onBuy
+        self.onSkip = onSkip
+    }
+    
     @Environment(\.dismiss) private var dismiss
     @State private var messages: [ChatMessage] = []
     @State private var inputText: String = ""
+    @State private var selectedImage: UIImage?
+    @State private var showCamera = false
+    @State private var showImagePicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -83,10 +142,7 @@ struct ChatBotView: View {
                     .padding(.top, 12)
                 }
                 .background(
-                    LinearGradient(colors: [
-                        Color(red: 0.98, green: 0.96, blue: 1.0),
-                        Color(red: 0.9, green: 0.94, blue: 1.0)
-                    ], startPoint: .top, endPoint: .bottom)
+                    Color(uiColor: .systemGroupedBackground)
                 )
                 .onChange(of: messages) { _, _ in
                     if let last = messages.last {
@@ -107,9 +163,18 @@ struct ChatBotView: View {
         }
         .onAppear {
             let priceString = String(format: "%.2f", decision.price)
+            var initialMessage = "I see you're considering \(decision.title) for $\(priceString). Is this something you need or just want?"
+            
+            // 如果有初始图片，添加到第一条消息
+            if let image = initialImage {
+                messages.append(
+                    ChatMessage(role: .user, text: "Here's what I'm considering", image: image)
+                )
+                initialMessage = "I can see the \(decision.title) you're considering. Based on the image, is this something you need or just want?"
+            }
+            
             messages.append(
-                ChatMessage(role: .assistant,
-                            text: "I see you're considering \(decision.title) for $\(priceString). Is this something you need or just want?")
+                ChatMessage(role: .assistant, text: initialMessage)
             )
         }
     }
@@ -123,19 +188,19 @@ struct ChatBotView: View {
                     .overlay(Image(systemName: "bag").foregroundStyle(.white))
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(decision.title).font(.headline)
-                    Text("$\(decision.price, specifier: "%.2f")").font(.caption).foregroundStyle(.gray)
+                    Text(decision.title).font(.headline).foregroundStyle(Color.primary)
+                    Text("$\(decision.price, specifier: "%.2f")").font(.caption).foregroundStyle(Color.secondary)
                 }
             }
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .foregroundStyle(.black.opacity(0.7))
+                    .foregroundStyle(Color.primary)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.white)
+        .background(Color(uiColor: .systemBackground))
     }
     
     private var decisionBar: some View {
@@ -155,7 +220,7 @@ struct ChatBotView: View {
             }
             
             Text("or")
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color.secondary)
             
             Button {
                 var d = decision
@@ -178,9 +243,28 @@ struct ChatBotView: View {
     
     private var bottomInput: some View {
         HStack(spacing: 12) {
+            // 相机和相册按钮
+            Menu {
+                Button {
+                    showCamera = true
+                } label: {
+                    Label("Take Photo", systemImage: "camera.fill")
+                }
+                
+                Button {
+                    showImagePicker = true
+                } label: {
+                    Label("Choose Photo", systemImage: "photo.on.rectangle")
+                }
+            } label: {
+                Image(systemName: "camera.fill")
+                    .foregroundStyle(Color.primary)
+                    .frame(width: 44, height: 44)
+            }
+            
             TextField("Type your answer...", text: $inputText, axis: .vertical)
                 .padding(12)
-                .background(.white)
+                .background(Color(uiColor: .secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 40))
             
             Button {
@@ -191,29 +275,64 @@ struct ChatBotView: View {
                     .frame(width: 44, height: 44)
                     .overlay(Image(systemName: "paperplane.fill").foregroundStyle(.white))
             }
-            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .opacity(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
+            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedImage == nil)
+            .opacity((inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedImage == nil) ? 0.5 : 1)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.white)
+        .background(Color(uiColor: .systemBackground))
+        .sheet(isPresented: $showCamera) {
+            ImagePicker(image: $selectedImage, sourceType: .camera)
+        }
+        .photosPicker(isPresented: $showImagePicker, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { oldValue, newValue in
+            if let newValue = newValue {
+                loadImage(from: newValue)
+            }
+        }
+        .onChange(of: selectedImage) { oldValue, newValue in
+            if newValue != nil {
+                // 图片已选择，可以发送
+            }
+        }
+    }
+    
+    // 从PhotosPickerItem加载图片
+    private func loadImage(from item: PhotosPickerItem) {
+        Task {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                await MainActor.run {
+                    selectedImage = image
+                }
+            }
+        }
     }
     
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        let imageToSend = selectedImage
+        
+        // 如果文本和图片都为空，不发送
+        guard !text.isEmpty || imageToSend != nil else { return }
+        
+        // 清空输入
         inputText = ""
-        messages.append(ChatMessage(role: .user, text: text))
+        selectedImage = nil
+        selectedPhotoItem = nil
+        
+        // 添加用户消息
+        messages.append(ChatMessage(role: .user, text: text.isEmpty ? "Here's an image" : text, image: imageToSend))
         
         Task {
             do {
-                let reply = try await service.send(message: text, for: decision)
+                let reply = try await service.send(message: text.isEmpty ? "Please analyze this image and help me decide." : text, image: imageToSend, for: decision)
                 await MainActor.run {
                     messages.append(ChatMessage(role: .assistant, text: reply))
                 }
             } catch {
                 await MainActor.run {
-                    messages.append(ChatMessage(role: .assistant, text: "Network error"))
+                    messages.append(ChatMessage(role: .assistant, text: "Network error: \(error.localizedDescription)"))
                 }
             }
         }
@@ -237,14 +356,41 @@ private struct MessageBubble: View {
     }
     
     private var bubble: some View {
-        Text(message.text)
-            .padding(14)
-            .background(
-                message.role == .assistant ? AnyView(Color.white) : AnyView(Color.blue)
-            )
-            .foregroundStyle(message.role == .assistant ? .black : .white)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: message.role == .assistant ? .black.opacity(0.04) : .clear, radius: 3, x: 0, y: 2)
-            .frame(maxWidth: 260, alignment: message.role == .assistant ? .leading : .trailing)
+        VStack(alignment: message.role == .assistant ? .leading : .trailing, spacing: 8) {
+            // 显示图片（如果有）
+            if let image = message.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            
+            // 显示文本（如果有）
+            if !message.text.isEmpty {
+                Text(message.text)
+                    .padding(14)
+                    .background(
+                        message.role == .assistant 
+                            ? Color(uiColor: .systemBackground)
+                            : Color.blue
+                    )
+                    .foregroundStyle(
+                        message.role == .assistant 
+                            ? Color.primary
+                            : .white
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(
+                        color: message.role == .assistant 
+                            ? Color.primary.opacity(0.04) 
+                            : .clear,
+                        radius: 3,
+                        x: 0,
+                        y: 2
+                    )
+            }
+        }
+        .frame(maxWidth: 260, alignment: message.role == .assistant ? .leading : .trailing)
     }
 }

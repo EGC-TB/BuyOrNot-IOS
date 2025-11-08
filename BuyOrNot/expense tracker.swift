@@ -24,7 +24,7 @@ struct ExpenseTrackerView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(colors: [.white, Color(red: 0.9, green: 0.93, blue: 1.0)], startPoint: .top, endPoint: .bottom)
+                Color(uiColor: .systemBackground)
                     .ignoresSafeArea()
                 
                 VStack(spacing: 18) {
@@ -69,7 +69,7 @@ struct ExpenseTrackerView: View {
                                 .font(.footnote).bold()
                             TextField("e.g., Coffee Maker", text: $newName)
                                 .padding(12)
-                                .background(.white)
+                                .background(Color(uiColor: .secondarySystemBackground))
                                 .cornerRadius(16)
                             
                             Text("Price")
@@ -80,7 +80,7 @@ struct ExpenseTrackerView: View {
                                     .keyboardType(.decimalPad)
                             }
                             .padding(12)
-                            .background(.white)
+                            .background(Color(uiColor: .secondarySystemBackground))
                             .cornerRadius(16)
                             
                             HStack {
@@ -108,7 +108,7 @@ struct ExpenseTrackerView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
-                                .background(.white)
+                                .background(Color(uiColor: .secondarySystemBackground))
                                 .cornerRadius(14)
                             }
                         }
@@ -146,9 +146,9 @@ struct ExpenseTrackerView: View {
                                     }
                                 }
                                 .padding()
-                                .background(.white)
+                                .background(Color(uiColor: .secondarySystemBackground))
                                 .cornerRadius(16)
-                                .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
+                                .shadow(color: Color.primary.opacity(0.03), radius: 3, x: 0, y: 1)
                                 .padding(.horizontal)
                             }
                         }
@@ -172,7 +172,7 @@ struct ExpenseTrackerView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .foregroundStyle(.black.opacity(0.7))
+                            .foregroundStyle(Color.primary)
                     }
                 }
             }
