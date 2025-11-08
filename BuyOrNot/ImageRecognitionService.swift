@@ -38,13 +38,14 @@ class ImageRecognitionService {
         let prompt = """
         You are analyzing a product image. Extract the following information:
         
-        1. Product name: Identify what product/item is shown in the image. Be very specific and accurate. Use the exact product name if visible, or describe it clearly.
+        1. Product name: Identify what product/item is shown in the image. Keep the name SHORT and CONCISE (2-4 words maximum). Use the brand name and product type only (e.g., "iPhone 15", "MacBook Pro", "Nike Shoes", "Coffee Maker"). Do not include detailed descriptions, model numbers, or specifications unless essential.
         2. Price: If there is any price tag, label, sticker, or visible price text anywhere in the image, extract the numeric value (remove currency symbols, commas, etc.). Only extract if you are confident about the price.
         
         IMPORTANT: Return ONLY a valid JSON object in this exact format, with no additional text before or after:
-        {"productName": "exact product name or 'Failed to identify product'", "price": number or null}
+        {"productName": "short product name or 'Failed to identify product'", "price": number or null}
         
         Rules:
+        - Product name must be SHORT and CONCISE (2-4 words max)
         - If you cannot clearly identify what product is shown, set productName to "Failed to identify product"
         - If no price is visible or you're uncertain, set price to null (not 0)
         - The price should be a number, not a string
