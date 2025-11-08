@@ -3,18 +3,61 @@ import SwiftUI
 protocol ChatService {
     func send(message: String, for decision: Decision) async throws -> String
 }
+import SwiftUI
 
-struct MockChatService: ChatService {
+private let GOOGLE_API_KEY = "AIzaSyDPc9Lo6WiYgkXaFCgjKMaX_NEQ7gl4-6g"
+
+struct GoogleChatService: ChatService {
     func send(message: String, for decision: Decision) async throws -> String {
-        try await Task.sleep(nanoseconds: 500_000_000)
-        let priceString = String(format: "%.2f", decision.price)
-        return "You are considering \(decision.title) for $\(priceString). You said: \(message)"
+
+        let url = URL(string:
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\(GOOGLE_API_KEY)"
+        )!
+
+        let systemPrompt = """
+        You are a helpful spending advisor. Ask thoughtful questions about whether the purchase is necessary, aligns with goals, and feelings behind it. Avoid telling the user what to do directly.
+        """
+
+        let payload: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": systemPrompt],
+                        ["text": "Item: \(decision.title), Price: \(decision.price)"],
+                        ["text": message]
+                    ]
+                ]
+            ]
+        ]
+
+        let body = try JSONSerialization.data(withJSONObject: payload)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        let result = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        guard
+            let candidates = result["candidates"] as? [[String: Any]],
+            let content = candidates.first?["content"] as? [String: Any],
+            let parts = content["parts"] as? [[String: Any]],
+            let text = parts.first?["text"] as? String
+        else {
+            throw NSError(domain: "ParseError", code: -1)
+        }
+
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
+
 struct ChatBotView: View {
     let decision: Decision
-    var service: ChatService = MockChatService()
+    var service: ChatService = GoogleChatService()
     
     // 👇 外面要的两个回调
     var onBuy: (Decision) -> Void
