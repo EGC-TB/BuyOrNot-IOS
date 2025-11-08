@@ -99,11 +99,19 @@ struct RootView: View {
                 userName = profile.name
                 userEmail = profile.email
             } else {
-                // 用登录信息作为默认值
-                userName = authService.currentUserName ?? authService.currentUserEmail ?? "User"
+                // 如果 Firestore 中没有，尝试从 Auth 获取
+                // 优先使用 displayName，如果没有则使用 email 的第一部分
+                if let displayName = authService.currentUserName, !displayName.isEmpty {
+                    userName = displayName
+                } else if let email = authService.currentUserEmail {
+                    // 如果 displayName 为空，使用邮箱的用户名部分（@ 之前的部分）
+                    userName = String(email.split(separator: "@").first ?? "User")
+                } else {
+                    userName = "User"
+                }
                 userEmail = authService.currentUserEmail ?? ""
                 
-                // 保存初始信息
+                // 保存到 Firestore，确保下次加载时能正确获取
                 if !userName.isEmpty && !userEmail.isEmpty {
                     try? await dataManager.saveUserProfile(name: userName, email: userEmail, userId: userId)
                 }

@@ -36,10 +36,14 @@ class FirebaseService: ObservableObject {
     func signUp(email: String, password: String, name: String) async throws {
         do {
             let result = try await Auth.auth().createUser(withEmail: email, password: password)
-            // 更新用户名字
+            // 更新用户名字到 Firebase Auth
             let changeRequest = result.user.createProfileChangeRequest()
             changeRequest.displayName = name
             try await changeRequest.commitChanges()
+            
+            // 保存用户信息到 Firestore
+            let dataManager = FirebaseDataManager()
+            try await dataManager.saveUserProfile(name: name, email: email, userId: result.user.uid)
             
             self.user = result.user
             self.isAuthenticated = true
