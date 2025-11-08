@@ -10,12 +10,11 @@ struct AccountView: View {
     let savedAmount: Double
     let spentAmount: Double
     
-    // ✅ Helper to compute initials dynamically
     private var initials: String {
         let parts = name.split(separator: " ")
         let first = parts.first?.first.map(String.init) ?? ""
-        let last = parts.dropFirst().first?.first.map(String.init) ?? ""
-        return (first + last).uppercased()
+        let second = parts.dropFirst().first?.first.map(String.init) ?? ""
+        return (first + second).uppercased()
     }
     
     var body: some View {
@@ -27,30 +26,24 @@ struct AccountView: View {
                 
                 ScrollView {
                     VStack(spacing: 24) {
-                        Button {
-                            // Future: upload profile image
-                        } label: {
-                            ZStack(alignment: .bottomTrailing) {
-                                Circle()
-                                    .fill(LinearGradient(colors: [.purple, .pink],
-                                                         startPoint: .topLeading,
-                                                         endPoint: .bottomTrailing))
-                                    .frame(width: 120, height: 120)
-                                    .overlay(
-                                        Text(initials) // 👈 show initials
-                                            .foregroundStyle(.white)
-                                            .font(.system(size: 36, weight: .bold))
-                                    )
-                                
-                                Circle()
-                                    .fill(.white)
-                                    .frame(width: 34, height: 34)
-                                    .overlay(
-                                        Image(systemName: "camera.fill")
-                                            .foregroundStyle(.purple)
-                                    )
-                                    .offset(x: 4, y: 4)
-                            }
+                        // 头像
+                        ZStack(alignment: .bottomTrailing) {
+                            Circle()
+                                .fill(LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                .frame(width: 120, height: 120)
+                                .overlay(
+                                    Text(initials)
+                                        .foregroundStyle(.white)
+                                        .font(.system(size: 38, weight: .bold))
+                                )
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 34, height: 34)
+                                .overlay(
+                                    Image(systemName: "camera.fill")
+                                        .foregroundStyle(.purple)
+                                )
+                                .offset(x: 4, y: 4)
                         }
                         
                         VStack(alignment: .leading, spacing: 10) {
@@ -68,7 +61,6 @@ struct AccountView: View {
                                 .background(.white)
                                 .cornerRadius(16)
                                 .keyboardType(.emailAddress)
-                                .textInputAutocapitalization(.never)
                         }
                         
                         VStack(alignment: .leading, spacing: 8) {
@@ -76,20 +68,17 @@ struct AccountView: View {
                             HStack(spacing: 30) {
                                 VStack {
                                     Text("\(decisionsCount)")
-                                        .font(.title3).bold()
-                                        .foregroundStyle(.purple)
+                                        .font(.title3).bold().foregroundStyle(.purple)
                                     Text("Decisions").font(.caption)
                                 }
                                 VStack {
                                     Text("$\(savedAmount, specifier: "%.0f")")
-                                        .font(.title3).bold()
-                                        .foregroundStyle(.green)
+                                        .font(.title3).bold().foregroundStyle(.green)
                                     Text("Saved").font(.caption)
                                 }
                                 VStack {
                                     Text("$\(spentAmount, specifier: "%.0f")")
-                                        .font(.title3).bold()
-                                        .foregroundStyle(.red)
+                                        .font(.title3).bold().foregroundStyle(.red)
                                     Text("Spent").font(.caption)
                                 }
                             }
@@ -105,7 +94,8 @@ struct AccountView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Text("Account Settings").font(.headline)
+                    Text("Account Settings")
+                        .font(.headline)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {

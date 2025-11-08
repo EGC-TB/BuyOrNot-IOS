@@ -3,8 +3,9 @@ import SwiftUI
 struct DashboardView: View {
     let decisions: [Decision]
     let expenses: [ExpenseItem]
-    let savedAmount: Double      // ✅ 新增
+    let savedAmount: Double
     let userName: String
+    
     var onNewDecision: () -> Void
     var onShowExpenses: () -> Void
     var onAvatarTap: () -> Void
@@ -14,11 +15,12 @@ struct DashboardView: View {
         expenses.reduce(0) { $0 + $1.price }
     }
     
+    // 头像首字母
     private var initials: String {
         let parts = userName.split(separator: " ")
         let first = parts.first?.first.map(String.init) ?? ""
-        let last = parts.dropFirst().first?.first.map(String.init) ?? ""
-        return (first + last).uppercased()
+        let second = parts.dropFirst().first?.first.map(String.init) ?? ""
+        return (first + second).uppercased()
     }
     
     var body: some View {
@@ -31,6 +33,10 @@ struct DashboardView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    // 👇 用系统安全区而不是 Environment key
+                    Color.clear
+                        .frame(height: 8) // 给一点顶部间距
+                    
                     header
                     
                     Text("My Decisions")
@@ -98,7 +104,7 @@ struct DashboardView: View {
                     Spacer(minLength: 50)
                 }
                 .padding(.horizontal, 22)
-                .padding(.top, 10)
+                .padding(.top, 16) // 再给一点总的上边距，防止贴刘海
             }
         }
     }
@@ -116,21 +122,19 @@ struct DashboardView: View {
                         .foregroundStyle(.white)
                         .font(.system(size: 20, weight: .bold))
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("BuyOrNot")
-                        .font(.title3).bold()
-                        .foregroundStyle(.black.opacity(0.8))
-                }
+                Text("BuyOrNot")
+                    .font(.title3).bold()
+                    .foregroundStyle(.black.opacity(0.8))
             }
+            
             Spacer()
+            
             Button {
                 onAvatarTap()
             } label: {
                 Circle()
                     .fill(
-                        LinearGradient(colors: [.purple, .pink],
-                                       startPoint: .topLeading,
-                                       endPoint: .bottomTrailing)
+                        LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
                     )
                     .frame(width: 44, height: 44)
                     .overlay(
