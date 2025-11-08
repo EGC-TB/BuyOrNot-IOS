@@ -1,24 +1,65 @@
 import SwiftUI
 
-// 后端协议
 protocol ChatService {
     func send(message: String, for decision: Decision) async throws -> String
 }
+import SwiftUI
 
-// 假实现
-struct MockChatService: ChatService {
+private let GOOGLE_API_KEY = "AIzaSyDPc9Lo6WiYgkXaFCgjKMaX_NEQ7gl4-6g"
+
+struct GoogleChatService: ChatService {
     func send(message: String, for decision: Decision) async throws -> String {
-        try await Task.sleep(nanoseconds: 600_000_000)
-        let priceString = String(format: "%.2f", decision.price)
-        return "You are considering \(decision.title) for $\(priceString). You said: \(message)"
+
+        let url = URL(string:
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\(GOOGLE_API_KEY)"
+        )!
+
+        let systemPrompt = """
+        You are a helpful spending advisor. Ask thoughtful questions about whether the purchase is necessary, aligns with goals, and feelings behind it. Avoid telling the user what to do directly.
+        """
+
+        let payload: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": systemPrompt],
+                        ["text": "Item: \(decision.title), Price: \(decision.price)"],
+                        ["text": message]
+                    ]
+                ]
+            ]
+        ]
+
+        let body = try JSONSerialization.data(withJSONObject: payload)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        let result = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        guard
+            let candidates = result["candidates"] as? [[String: Any]],
+            let content = candidates.first?["content"] as? [String: Any],
+            let parts = content["parts"] as? [[String: Any]],
+            let text = parts.first?["text"] as? String
+        else {
+            throw NSError(domain: "ParseError", code: -1)
+        }
+
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
+
 struct ChatBotView: View {
     let decision: Decision
-    var service: ChatService = MockChatService()
+    var service: ChatService = GoogleChatService()
     
-    // 新增两个回调
+    // 👇 外面要的两个回调
     var onBuy: (Decision) -> Void
     var onSkip: (Decision) -> Void
     
@@ -58,7 +99,7 @@ struct ChatBotView: View {
                 }
             }
             
-            // 决策条
+            // 两个按钮：Buy / Not
             decisionBar
             
             // 输入框
@@ -67,40 +108,27 @@ struct ChatBotView: View {
         .onAppear {
             let priceString = String(format: "%.2f", decision.price)
             messages.append(
-                ChatMessage(
-                    role: .assistant,
-                    text: "I see you're considering \(decision.title) for $\(priceString). Is this something you need or just want?"
-                )
+                ChatMessage(role: .assistant,
+                            text: "I see you're considering \(decision.title) for $\(priceString). Is this something you need or just want?")
             )
         }
     }
     
-    // MARK: - header
     private var header: some View {
         HStack {
             HStack(spacing: 10) {
                 Circle()
                     .fill(LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: "bag")
-                            .foregroundStyle(.white)
-                    )
+                    .overlay(Image(systemName: "bag").foregroundStyle(.white))
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(decision.title)
-                        .font(.headline)
-                    Text("$\(decision.price, specifier: "%.2f")")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
+                    Text(decision.title).font(.headline)
+                    Text("$\(decision.price, specifier: "%.2f")").font(.caption).foregroundStyle(.gray)
                 }
             }
-            
             Spacer()
-            
-            Button {
-                dismiss()
-            } label: {
+            Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .foregroundStyle(.black.opacity(0.7))
             }
@@ -110,11 +138,9 @@ struct ChatBotView: View {
         .background(.white)
     }
     
-    // MARK: - decision bar
     private var decisionBar: some View {
         HStack(spacing: 12) {
             Button {
-                // 买了
                 var d = decision
                 d.status = .purchased
                 onBuy(d)
@@ -132,7 +158,6 @@ struct ChatBotView: View {
                 .foregroundStyle(.gray)
             
             Button {
-                // 不买 -> skipped
                 var d = decision
                 d.status = .skipped
                 onSkip(d)
@@ -149,10 +174,8 @@ struct ChatBotView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
-        .background(.clear)
     }
     
-    // MARK: - input
     private var bottomInput: some View {
         HStack(spacing: 12) {
             TextField("Type your answer...", text: $inputText, axis: .vertical)
@@ -166,10 +189,7 @@ struct ChatBotView: View {
                 Circle()
                     .fill(LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 44, height: 44)
-                    .overlay(
-                        Image(systemName: "paperplane.fill")
-                            .foregroundStyle(.white)
-                    )
+                    .overlay(Image(systemName: "paperplane.fill").foregroundStyle(.white))
             }
             .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .opacity(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
@@ -183,7 +203,6 @@ struct ChatBotView: View {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         inputText = ""
-        
         messages.append(ChatMessage(role: .user, text: text))
         
         Task {
@@ -201,7 +220,7 @@ struct ChatBotView: View {
     }
 }
 
-// MARK: - 气泡
+// 聊天气泡
 private struct MessageBubble: View {
     let message: ChatMessage
     
@@ -221,9 +240,7 @@ private struct MessageBubble: View {
         Text(message.text)
             .padding(14)
             .background(
-                message.role == .assistant
-                ? AnyView(Color.white)
-                : AnyView(Color.blue)
+                message.role == .assistant ? AnyView(Color.white) : AnyView(Color.blue)
             )
             .foregroundStyle(message.role == .assistant ? .black : .white)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
