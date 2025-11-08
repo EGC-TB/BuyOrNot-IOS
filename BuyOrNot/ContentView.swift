@@ -77,6 +77,20 @@ struct RootView: View {
             .onAppear {
                 if !hasLoadedInitialData {
                     loadInitialData()
+                } else {
+                    // 如果已经加载过，但可能是刚注册，检查是否有刚注册的名字
+                    if let justSignedUpName = authService.justSignedUpName, !justSignedUpName.isEmpty {
+                        userName = justSignedUpName
+                        userEmail = authService.currentUserEmail ?? ""
+                        authService.justSignedUpName = nil
+                    }
+                }
+            }
+            .onChange(of: authService.isAuthenticated) { oldValue, newValue in
+                // 当认证状态改变时（比如刚注册），重新加载数据
+                if newValue && !oldValue {
+                    hasLoadedInitialData = false
+                    loadInitialData()
                 }
             }
             .onDisappear {
@@ -94,26 +108,42 @@ struct RootView: View {
         }
         
         Task {
-            // 加载用户信息
-            if let profile = try? await dataManager.loadUserProfile(userId: userId) {
-                userName = profile.name
-                userEmail = profile.email
-            } else {
-                // 如果 Firestore 中没有，尝试从 Auth 获取
-                // 优先使用 displayName，如果没有则使用 email 的第一部分
-                if let displayName = authService.currentUserName, !displayName.isEmpty {
-                    userName = displayName
-                } else if let email = authService.currentUserEmail {
-                    // 如果 displayName 为空，使用邮箱的用户名部分（@ 之前的部分）
-                    userName = String(email.split(separator: "@").first ?? "User")
-                } else {
-                    userName = "User"
-                }
+            // 优先使用刚注册时的名字（如果存在）- 这是最可靠的
+            if let justSignedUpName = authService.justSignedUpName, !justSignedUpName.isEmpty {
+                userName = justSignedUpName
                 userEmail = authService.currentUserEmail ?? ""
+                print("✅ 使用刚注册的名字: \(justSignedUpName)")
                 
-                // 保存到 Firestore，确保下次加载时能正确获取
-                if !userName.isEmpty && !userEmail.isEmpty {
-                    try? await dataManager.saveUserProfile(name: userName, email: userEmail, userId: userId)
+                // 确保保存到 Firestore（即使已经保存过，也要确保）
+                try? await dataManager.saveUserProfile(name: justSignedUpName, email: userEmail, userId: userId)
+                
+                // 清除标志
+                authService.justSignedUpName = nil
+            } else {
+                // 尝试从 Firestore 加载
+                if let profile = try? await dataManager.loadUserProfile(userId: userId) {
+                    userName = profile.name
+                    userEmail = profile.email
+                    print("✅ 从 Firestore 加载名字: \(profile.name)")
+                } else {
+                    // 如果 Firestore 中没有，尝试从 Auth 获取
+                    if let displayName = authService.currentUserName, !displayName.isEmpty {
+                        userName = displayName
+                        print("✅ 使用 Auth displayName: \(displayName)")
+                    } else if let email = authService.currentUserEmail {
+                        // 如果 displayName 为空，使用邮箱的用户名部分（@ 之前的部分）
+                        userName = String(email.split(separator: "@").first ?? "User")
+                        print("⚠️ 回退到邮箱用户名: \(userName)")
+                    } else {
+                        userName = "User"
+                        print("⚠️ 使用默认名字: User")
+                    }
+                    userEmail = authService.currentUserEmail ?? ""
+                    
+                    // 保存到 Firestore，确保下次加载时能正确获取
+                    if !userName.isEmpty && !userEmail.isEmpty {
+                        try? await dataManager.saveUserProfile(name: userName, email: userEmail, userId: userId)
+                    }
                 }
             }
             
