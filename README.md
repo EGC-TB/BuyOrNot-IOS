@@ -1,143 +1,339 @@
-# 🛍️ BuyOrNot (SmartBuy)
+# BuyOrNot
 
-**BuyOrNot** is a smart spending decision assistant built with SwiftUI.
-It helps you reflect on purchases before making them, track your expenses, and visualize your savings — powered by a conversational AI interface.
+BuyOrNot is a smart spending decision assistant iOS app built with SwiftUI and Firebase. It helps users make informed purchase decisions through an AI-powered chat interface, tracks expenses, and visualizes savings.
 
----
+## Features
 
-## 📱 Features
+### Authentication
+- Email and password authentication via Firebase Auth
+- User registration with name and email
+- Secure login and logout functionality
+- User profile management
 
-### 💬 Chat-Based Decision Assistant
+### Decision Making
+- Create new purchase decisions with product name and price
+- AI-powered chat assistant (Google Gemini) to discuss purchases
+- Make Buy or Not decisions with visual feedback
+- Track decision history with status (pending, purchased, skipped)
 
-* Discuss potential purchases with an AI chatbot that helps you think before you buy.
-* Get suggestions or reflections based on your budget, spending history, and needs.
-* Choose to **Buy** or **Not**, with visual feedback and automatic tracking.
+### Expense Tracking
+- Automatic expense creation when items are purchased
+- Manual expense entry
+- View all expenses with total spent calculation
+- Delete expenses with Firebase sync
 
-### 💸 Expense Tracking
+### Financial Overview
+- Dashboard showing total spent and total saved
+- Real-time calculation of savings from skipped purchases
+- User statistics (decisions count, saved amount, spent amount)
+- Visual cards for quick access to features
 
-* Every purchase decision is saved automatically.
-* Bought items appear in your **Expenses** list and contribute to your total **Spent** amount.
-* Skipped purchases add their value to your **Saved** total.
+### Data Persistence
+- All data stored in Firebase Firestore
+- Real-time synchronization across devices
+- Automatic data loading on app launch
+- User profile persistence
 
-### 📊 Dashboard Overview
+## Tech Stack
 
-* Get a clear, gradient-based dashboard showing:
+- Language: Swift 5.0
+- Framework: SwiftUI
+- Backend: Firebase (Authentication, Firestore)
+- AI Service: Google Gemini API
+- Architecture: MVVM-style with ObservableObject
+- Async/Await: For network operations and Firebase calls
 
-  * Total **Spent**
-  * Total **Saved**
-  * Quick access to **New Decision**, **Expense Tracker**, and **Account**
+## Project Structure
 
-### 📂 Decision History
+### Core App Files
 
-* View all past decisions with visual cards:
+**BuyOrNotApp.swift**
+- Main app entry point
+- Initializes Firebase
+- Manages authentication state
+- Routes between LoginView and RootView
 
-  * **Purchased** cards in green
-  * **Skipped** cards in red
-* Instantly reopen any decision for further chat or review.
+**ContentView.swift (RootView)**
+- Main view controller after authentication
+- Manages app state (decisions, expenses, user data)
+- Handles data loading from Firebase
+- Coordinates navigation between views
+- Implements decision reconciliation logic
 
----
+### Authentication
 
-## 🧠 Core Logic
+**LoginView.swift**
+- Login and signup interface
+- Email/password authentication
+- Form validation
+- Error handling
 
-| Action            | Result                                           |
-| ----------------- | ------------------------------------------------ |
-| **Buy**           | Adds item to expenses, increases “Spent”         |
-| **Not**           | Marks decision as skipped, adds price to “Saved” |
-| **New Decision**  | Opens a form to record a potential purchase      |
-| **Chat Decision** | Discuss item in ChatBotView, then decide         |
+**FirebaseService.swift**
+- Firebase Authentication wrapper
+- User sign up, sign in, sign out
+- Authentication state management
+- Current user information access
 
----
+### Data Management
 
-## 🧩 Architecture Overview
+**FirebaseDataManager.swift**
+- Firestore operations
+- CRUD operations for decisions, expenses, user profile
+- Real-time listeners for data synchronization
+- Data persistence and retrieval
 
-### Main Components
+### Views
 
-| File                       | Description                               |
-| -------------------------- | ----------------------------------------- |
-| `RootView.swift`           | App’s main navigation and state manager   |
-| `DashboardView.swift`      | Displays overall statistics and key cards |
-| `ChatBotView.swift`        | Conversational purchase assistant         |
-| `DecisionFormView.swift`   | Form to add a new decision                |
-| `ExpenseTrackerView.swift` | Lists all purchases                       |
-| `DecisionCardView.swift`   | Visual component for a decision item      |
-| `ExpenseItem.swift`        | Model representing a purchase             |
-| `Decision.swift`           | Model for each buy/not decision           |
-| `AccountView.swift`        | (Optional) User profile view              |
+**DashboardView.swift**
+- Main dashboard display
+- Shows total spent and saved
+- Quick access buttons (New Decision, Expenses)
+- Decision cards list
+- User avatar with initials
 
----
+**AccountView.swift**
+- User profile settings
+- Edit name and email
+- Save profile changes to Firebase
+- Display user statistics
+- Logout functionality
 
-## ⚙️ Data Model
+**DecisionFormView.swift**
+- Form to create new purchase decisions
+- Product name and price input
+- Image upload placeholder (future feature)
+
+**DecisionCardView.swift**
+- Visual card component for decisions
+- Displays decision title, price, date
+- Status indicator (Saved badge for skipped items)
+
+**ExpenseTrackerView.swift**
+- List of all expenses
+- Total spent calculation
+- Add new expenses manually
+- Delete expenses
+- Firebase synchronization
+
+**ChatBotView.swift**
+- AI chat interface for purchase discussions
+- Google Gemini API integration
+- Message history display
+- Buy/Not decision buttons
+- Real-time chat responses
+
+**GradientCardView.swift**
+- Reusable gradient card component
+- Used for quick action buttons
+- Customizable colors and content
+
+### Models
+
+**Decision.swift**
+- Purchase decision model
+- Properties: id, title, price, date, status
+- Status enum: pending, skipped, purchased
+- Codable for Firebase serialization
+
+**ExpenseItem.swift**
+- Expense model
+- Properties: id, decisionId, name, price, date
+- Links expenses to decisions
+- Codable for Firebase serialization
+
+**ChatMessage.swift**
+- Chat message model
+- Properties: id, role (user/assistant), text, time
+- Used in chatbot conversation
+
+## Setup Instructions
+
+### Prerequisites
+
+1. Xcode 15.0 or later
+2. iOS 18.5 or later deployment target
+3. Firebase account
+4. Google Gemini API key (for chat functionality)
+
+### Firebase Setup
+
+1. Create a Firebase project at https://console.firebase.google.com
+2. Add iOS app with your bundle identifier
+3. Download GoogleService-Info.plist
+4. Add GoogleService-Info.plist to Xcode project:
+   - Drag file into BuyOrNot folder
+   - Ensure "Copy items if needed" is checked
+   - Ensure "BuyOrNot" target is selected
+5. Enable Email/Password authentication in Firebase Console
+6. Create Firestore database in test mode
+7. Set up Firestore security rules (see FIREBASE_SETUP.md)
+
+### Dependencies
+
+Add Firebase SDK via Swift Package Manager:
+
+1. In Xcode: File > Add Package Dependencies
+2. Enter: https://github.com/firebase/firebase-ios-sdk
+3. Select packages:
+   - FirebaseCore
+   - FirebaseAuth
+   - FirebaseFirestore
+4. Add to BuyOrNot target
+
+### API Configuration
+
+Update the Google Gemini API key in chatbot.swift:
 
 ```swift
-struct Decision: Identifiable {
-    var id: UUID
-    var title: String
-    var price: Double
-    var date: Date
-    var status: DecisionStatus
-}
+private let GOOGLE_API_KEY = "YOUR_API_KEY_HERE"
+```
 
-enum DecisionStatus: String, Codable {
-    case pending
-    case purchased
-    case skipped
-}
+Get API key from: https://makersuite.google.com/app/apikey
 
-struct ExpenseItem: Identifiable {
-    var id: UUID
-    var name: String
-    var price: Double
-    var date: Date
+### Build and Run
+
+1. Open BuyOrNot.xcodeproj in Xcode
+2. Select target device or simulator
+3. Build project (Command + B)
+4. Run app (Command + R)
+
+## Data Structure
+
+### Firestore Collections
+
+```
+users/
+  {userId}/
+    name: string
+    email: string
+    savedAmount: number
+    decisions/
+      {decisionId}/
+        id: string
+        title: string
+        price: number
+        date: timestamp
+        status: string (pending/skipped/purchased)
+    expenses/
+      {expenseId}/
+        id: string
+        name: string
+        price: number
+        date: timestamp
+        decisionId: string (optional)
+```
+
+## Core Workflows
+
+### User Registration
+
+1. User enters name, email, password
+2. FirebaseService.signUp creates Firebase Auth user
+3. Name saved to Firebase Auth displayName
+4. Profile saved to Firestore
+5. User redirected to dashboard
+
+### Creating a Decision
+
+1. User taps "New Decision" button
+2. DecisionFormView opens
+3. User enters product name and price
+4. Decision created with status "pending"
+5. Saved to Firestore
+6. ChatBotView opens automatically
+
+### Making a Decision
+
+1. User chats with AI about purchase
+2. User taps "Buy" or "Not" button
+3. Decision status updated
+4. If Buy: expense created, saved amount unchanged
+5. If Not: saved amount increases by price
+6. Changes synced to Firebase
+
+### Expense Management
+
+1. Purchased decisions automatically create expenses
+2. User can manually add expenses in ExpenseTrackerView
+3. Expenses can be deleted
+4. All changes sync to Firebase in real-time
+
+## Security Rules
+
+Firestore security rules should be configured as:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
 }
 ```
 
----
+This ensures users can only access their own data.
 
-## 🧱 Tech Stack
+## Troubleshooting
 
-* **Language:** Swift
-* **Framework:** SwiftUI
-* **Architecture:** MVVM-style state management using `@State` and `@Binding`
-* **Asynchronous Logic:** `async/await` for chat responses
-* **UI Design:** Gradient-based adaptive cards and light theme
-* **Data:** In-memory state (no persistence yet)
+### App Crashes on Launch
 
----
+- Verify GoogleService-Info.plist is in project
+- Check file is included in target membership
+- Ensure Firebase packages are properly installed
 
-## 🚀 Getting Started
+### Authentication Not Working
 
-1. **Clone the Repository**
+- Verify Email/Password is enabled in Firebase Console
+- Check network connection
+- Verify email format is valid
+- Ensure password is at least 6 characters
 
-   ```bash
-   git clone https://github.com/yourname/BuyOrNot.git
-   cd BuyOrNot
-   ```
+### Data Not Syncing
 
-2. **Open in Xcode**
+- Check Firestore rules allow read/write
+- Verify user is authenticated
+- Check Xcode console for error messages
+- Ensure Firestore database is created
 
-   ```bash
-   open BuyOrNot.xcodeproj
-   ```
+### Chat Not Working
 
-3. **Run the App**
+- Verify Google Gemini API key is set
+- Check API key has proper permissions
+- Verify network connection
+- Check API quota limits
 
-   * Select an iPhone simulator.
-   * Press **Run (⌘ + R)**.
+## File Descriptions
 
----
+- BuyOrNotApp.swift: App initialization and routing
+- ContentView.swift: Main view controller and state management
+- LoginView.swift: Authentication interface
+- DashboardView.swift: Main dashboard display
+- AccountView.swift: User profile and settings
+- DecisionFormView.swift: New decision creation form
+- DecisionCardView.swift: Decision card component
+- ExpenseTrackerView.swift: Expense list and management
+- ChatBotView.swift: AI chat interface
+- GradientCardView.swift: Reusable gradient card
+- FirebaseService.swift: Authentication service
+- FirebaseDataManager.swift: Firestore data operations
+- Decision.swift: Decision data model
+- ExpenseItem.swift: Expense data model
+- ChatMessage.swift: Chat message model
 
-## 🧩 Future Improvements
+## Development Notes
 
-* 🔗 Integrate OpenAI API for smarter chat logic
-* 💾 Persistent local storage with CoreData or SwiftData
-* 📈 Analytics dashboard (spending vs saving trends)
-* 🌙 Dark mode support
-* 🪙 Custom budget goals and recommendations
+- All Firebase operations are async/await
+- Real-time listeners update UI automatically
+- Data is persisted immediately on changes
+- User authentication state is observed throughout app
+- Chinese comments added for key functions
 
----
+## License
 
-## 🧑‍💻 Author
+This project is private and proprietary.
 
-**Eagle** — Developer, Researcher, and Deep Learning Enthusiast
+## Author
 
-> Interested in making tech that improves decision-making and financial wellness.
+Yinuo Chen, Yong Li Neo, Miaomiao Shu - AI@ATL 2025
