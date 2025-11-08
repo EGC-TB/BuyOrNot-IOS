@@ -8,7 +8,7 @@
 // ExpenseItem.swift
 import Foundation
 
-struct ExpenseItem: Identifiable, Hashable {
+struct ExpenseItem: Identifiable, Hashable, Codable {
     var id: UUID
     var decisionId: UUID?   // 👈 用来反向找到这条消费是谁生成的
     var name: String

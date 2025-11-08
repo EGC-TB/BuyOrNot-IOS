@@ -9,8 +9,10 @@ import SwiftUI
 
 struct ExpenseTrackerView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var authService: FirebaseService
     @Binding var expenses: [ExpenseItem]
     
+    @StateObject private var dataManager = FirebaseDataManager()
     @State private var showAdd = false
     @State private var newName: String = ""
     @State private var newPrice: Double = 0
@@ -83,8 +85,14 @@ struct ExpenseTrackerView: View {
                             
                             HStack {
                                 Button("Add") {
-                                    let newItem = ExpenseItem(id: UUID(), name: newName, price: newPrice, date: .now)
+                                    let newItem = ExpenseItem(id: UUID(), decisionId: nil, name: newName, price: newPrice, date: .now)
                                     expenses.insert(newItem, at: 0)
+                                    // 保存到Firebase
+                                    if let userId = authService.currentUserId {
+                                        Task {
+                                            try? await dataManager.saveExpense(newItem, userId: userId)
+                                        }
+                                    }
                                     newName = ""
                                     newPrice = 0
                                     withAnimation { showAdd = false }
@@ -123,7 +131,14 @@ struct ExpenseTrackerView: View {
                                         .bold()
                                     Button {
                                         if let idx = expenses.firstIndex(of: expense) {
+                                            let expenseToDelete = expenses[idx]
                                             expenses.remove(at: idx)
+                                            // 从Firebase删除
+                                            if let userId = authService.currentUserId {
+                                                Task {
+                                                    try? await dataManager.deleteExpense(expenseToDelete, userId: userId)
+                                                }
+                                            }
                                         }
                                     } label: {
                                         Image(systemName: "trash")

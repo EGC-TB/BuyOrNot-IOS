@@ -6,8 +6,8 @@
 //
 import Foundation
 
-struct Decision: Identifiable, Hashable {
-    enum Status: String {
+struct Decision: Identifiable, Hashable, Codable {
+    enum Status: String, Codable {
         case pending
         case skipped
         case purchased

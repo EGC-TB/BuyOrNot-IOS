@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct RootView: View {
+    @EnvironmentObject var authService: FirebaseService
+    @StateObject private var dataManager = FirebaseDataManager()
+    
     // 弹窗
     @State private var showNewDecision = false
     @State private var showExpenseTracker = false
@@ -8,29 +11,17 @@ struct RootView: View {
     @State private var activeDecision: Decision? = nil
     
     // 用户
-    @State private var userName: String = "Eagle Chen"
-    @State private var userEmail: String = "eagle.chen@example.com"
+    @State private var userName: String = ""
+    @State private var userEmail: String = ""
     
-    // 初始决策（可以有已经 skipped 的）
-    @State private var decisions: [Decision] = [
-        Decision(id: UUID(), title: "Iphone 17 Pro", price: 1500, date: .now, status: .skipped),
-        Decision(id: UUID(), title: "Porsche 911", price: 150000, date: .now, status: .skipped)
-    ]
-    
-    // 初始支出
-    @State private var expenses: [ExpenseItem] = [
-        ExpenseItem(id: UUID(),
-                    decisionId: nil,
-                    name: "MacBook Pro",
-                    price: 1500,
-                    date: .now)
-    ]
-    
-    // 省下的钱（我们会在 onAppear 里重新算一遍）
+    // 数据
+    @State private var decisions: [Decision] = []
+    @State private var expenses: [ExpenseItem] = []
     @State private var savedAmount: Double = 0
     
-    // 为了避免 onAppear 多次执行导致重复结算
-    @State private var didInitReconcile: Bool = false
+    // 加载状态
+    @State private var isLoading: Bool = true
+    @State private var hasLoadedInitialData: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -50,10 +41,17 @@ struct RootView: View {
                 DecisionFormView { newDecision in
                     decisions.insert(newDecision, at: 0)
                     activeDecision = newDecision
+                    // 保存到Firebase
+                    if let userId = authService.currentUserId {
+                        Task {
+                            try? await dataManager.saveDecision(newDecision, userId: userId)
+                        }
+                    }
                 }
             }
             .sheet(isPresented: $showExpenseTracker) {
                 ExpenseTrackerView(expenses: $expenses)
+                    .environmentObject(authService)
             }
             .sheet(isPresented: $showAccount) {
                 AccountView(
@@ -63,6 +61,7 @@ struct RootView: View {
                     savedAmount: savedAmount,
                     spentAmount: expenses.reduce(0) { $0 + $1.price }
                 )
+                .environmentObject(authService)
             }
             .sheet(item: $activeDecision) { decision in
                 ChatBotView(
@@ -75,69 +74,124 @@ struct RootView: View {
                     }
                 )
             }
-            // 👇 初始化结算：只做一次
             .onAppear {
-                if !didInitReconcile {
-                    initialReconcile()
-                    didInitReconcile = true
+                if !hasLoadedInitialData {
+                    loadInitialData()
                 }
+            }
+            .onDisappear {
+                dataManager.removeAllListeners()
             }
         }
     }
     
-    // MARK: - 初次启动时，把现有的数据“算一遍”
-    private func initialReconcile() {
-        // 1. 把所有 skipped 的决策加进 saved
+    // MARK: - Load Initial Data from Firebase
+    // 加载初始数据
+    private func loadInitialData() {
+        guard let userId = authService.currentUserId else {
+            isLoading = false
+            return
+        }
+        
+        Task {
+            // 加载用户信息
+            if let profile = try? await dataManager.loadUserProfile(userId: userId) {
+                userName = profile.name
+                userEmail = profile.email
+            } else {
+                // 用登录信息作为默认值
+                userName = authService.currentUserName ?? authService.currentUserEmail ?? "User"
+                userEmail = authService.currentUserEmail ?? ""
+                
+                // 保存初始信息
+                if !userName.isEmpty && !userEmail.isEmpty {
+                    try? await dataManager.saveUserProfile(name: userName, email: userEmail, userId: userId)
+                }
+            }
+            
+            // 加载省下的金额
+            savedAmount = (try? await dataManager.loadSavedAmount(userId: userId)) ?? 0.0
+            
+            // 设置实时监听
+            dataManager.listenToDecisions(userId: userId) { [self] updatedDecisions in
+                self.decisions = updatedDecisions.sorted { $0.date > $1.date }
+                // 重新计算省下的金额
+                recalculateSavedAmount()
+            }
+            
+            dataManager.listenToExpenses(userId: userId) { [self] updatedExpenses in
+                self.expenses = updatedExpenses.sorted { $0.date > $1.date }
+            }
+            
+            isLoading = false
+            hasLoadedInitialData = true
+        }
+    }
+    
+    // 重新计算省下的金额
+    private func recalculateSavedAmount() {
         let skippedTotal = decisions
             .filter { $0.status == .skipped }
             .reduce(0.0) { $0 + $1.price }
-        savedAmount += skippedTotal
-        
-        // 2. 如果你想保证所有 purchased 的决策都有对应的 expense，可以补齐
-        for decision in decisions where decision.status == .purchased {
-            // 如果已经有这条 decision 的消费，就不重复加
-            let alreadyExists = expenses.contains { $0.decisionId == decision.id }
-            if !alreadyExists {
-                addExpense(for: decision)
+        savedAmount = skippedTotal
+        // 保存到Firebase
+        if let userId = authService.currentUserId {
+            Task {
+                try? await dataManager.saveSavedAmount(savedAmount, userId: userId)
             }
         }
     }
     
     // MARK: - Chat 回来的入口
+    // 处理决策状态变化
     private func applyDecisionChange(_ updated: Decision, newStatus: Decision.Status) {
+        guard let userId = authService.currentUserId else { return }
+        
         if let idx = decisions.firstIndex(where: { $0.id == updated.id }) {
             let oldDecision = decisions[idx]
             var newDecision = updated
             newDecision.status = newStatus
             decisions[idx] = newDecision
-            reconcile(old: oldDecision, new: newDecision)
+            reconcile(old: oldDecision, new: newDecision, userId: userId)
         } else {
             var newDecision = updated
             newDecision.status = newStatus
             decisions.insert(newDecision, at: 0)
-            reconcile(old: nil, new: newDecision)
+            reconcile(old: nil, new: newDecision, userId: userId)
         }
     }
     
     // MARK: - 差量更新
-    private func reconcile(old: Decision?, new: Decision) {
+    // 处理决策状态变化
+    private func reconcile(old: Decision?, new: Decision, userId: String) {
         let price = new.price
+        
+        // 保存决策到Firebase
+        Task {
+            try? await dataManager.saveDecision(new, userId: userId)
+        }
         
         switch (old?.status, new.status) {
         // 新的 / pending -> 买了
         case (.none, .purchased),
              (.some(.pending), .purchased):
-            addExpense(for: new)
+            addExpense(for: new, userId: userId)
             
         // 新的 / pending -> 不买
         case (.none, .skipped),
              (.some(.pending), .skipped):
             savedAmount += price
+            Task {
+                try? await dataManager.saveSavedAmount(savedAmount, userId: userId)
+            }
             
         // 买了 -> 不买
         case (.some(.purchased), .skipped):
-            removeExpense(matching: new)
+            removeExpense(matching: new, userId: userId)
             savedAmount += price
+            Task {
+                try? await dataManager.saveSavedAmount(savedAmount, userId: userId)
+            }
             
         // 不买 -> 买了
         case (.some(.skipped), .purchased):
@@ -146,7 +200,10 @@ struct RootView: View {
             } else {
                 savedAmount = 0
             }
-            addExpense(for: new)
+            Task {
+                try? await dataManager.saveSavedAmount(savedAmount, userId: userId)
+            }
+            addExpense(for: new, userId: userId)
             
         default:
             break
@@ -154,7 +211,8 @@ struct RootView: View {
     }
     
     // MARK: - 加消费
-    private func addExpense(for decision: Decision) {
+    // 添加消费记录
+    private func addExpense(for decision: Decision, userId: String) {
         let item = ExpenseItem(
             id: UUID(),
             decisionId: decision.id,
@@ -163,14 +221,30 @@ struct RootView: View {
             date: .now
         )
         expenses.insert(item, at: 0)
+        
+        // 保存到Firebase
+        Task {
+            try? await dataManager.saveExpense(item, userId: userId)
+        }
     }
     
     // MARK: - 删消费
-    private func removeExpense(matching decision: Decision) {
+    // 删除消费记录
+    private func removeExpense(matching decision: Decision, userId: String) {
         if let idx = expenses.firstIndex(where: { $0.decisionId == decision.id }) {
+            let expense = expenses[idx]
             expenses.remove(at: idx)
+            // 从Firebase删除
+            Task {
+                try? await dataManager.deleteExpense(expense, userId: userId)
+            }
         } else if let idx = expenses.firstIndex(where: { $0.name == decision.title && $0.price == decision.price }) {
+            let expense = expenses[idx]
             expenses.remove(at: idx)
+            // 从Firebase删除
+            Task {
+                try? await dataManager.deleteExpense(expense, userId: userId)
+            }
         }
     }
 }

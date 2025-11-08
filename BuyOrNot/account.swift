@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AccountView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var authService: FirebaseService
     
     @Binding var name: String
     @Binding var email: String
@@ -9,6 +10,10 @@ struct AccountView: View {
     let decisionsCount: Int
     let savedAmount: Double
     let spentAmount: Double
+    
+    @StateObject private var dataManager = FirebaseDataManager()
+    @State private var showSaveConfirmation: Bool = false
+    @State private var isSaving: Bool = false
     
     private var initials: String {
         let parts = name.split(separator: " ")
@@ -63,6 +68,31 @@ struct AccountView: View {
                                 .keyboardType(.emailAddress)
                         }
                         
+                        Button {
+                            saveProfile()
+                        } label: {
+                            HStack {
+                                if isSaving {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Image(systemName: "checkmark.circle.fill")
+                                    Text("Save Changes")
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(16)
+                            .background(
+                                LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing)
+                            )
+                            .foregroundStyle(.white)
+                            .cornerRadius(16)
+                        }
+                        .disabled(isSaving || name.isEmpty || email.isEmpty)
+                        .opacity(isSaving || name.isEmpty || email.isEmpty ? 0.6 : 1.0)
+                        .padding(.top, 8)
+                        
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Your Stats").font(.headline)
                             HStack(spacing: 30) {
@@ -92,6 +122,25 @@ struct AccountView: View {
                     .padding(20)
                 }
             }
+            .overlay(alignment: .top) {
+                if showSaveConfirmation {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("Changes saved!")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.white)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    .padding(.top, 20)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.3), value: showSaveConfirmation)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Text("Account Settings")
@@ -104,6 +153,27 @@ struct AccountView: View {
                     }
                 }
             }
+        }
+    }
+    
+    // 保存用户信息
+    private func saveProfile() {
+        guard let userId = authService.currentUserId else { return }
+        
+        isSaving = true
+        Task {
+            do {
+                try await dataManager.saveUserProfile(name: name, email: email, userId: userId)
+                showSaveConfirmation = true
+                
+                // 2秒后隐藏确认消息
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showSaveConfirmation = false
+                }
+            } catch {
+                print("Error saving profile: \(error)")
+            }
+            isSaving = false
         }
     }
 }
