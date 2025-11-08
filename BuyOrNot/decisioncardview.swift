@@ -19,15 +19,15 @@ struct DecisionCardView: View {
                 RoundedRectangle(cornerRadius: 28)
                     .fill(
                         LinearGradient(colors: [
-                            Color(red: 1.0, green: 0.9, blue: 0.93),
-                            Color(red: 1.0, green: 0.84, blue: 0.9)
+                            Color(red: 0.96, green: 0.75, blue: 0.80),
+                            Color(red: 0.98, green: 0.70, blue: 0.75)
                         ], startPoint: .topLeading, endPoint: .bottomTrailing)
                     )
                     .frame(height: 140)
                 
                 VStack(alignment: .leading, spacing: 10) {
                     if decision.status == .skipped {
-                        Text("Skipped")
+                        Text("Saved")
                             .font(.caption2).bold()
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)

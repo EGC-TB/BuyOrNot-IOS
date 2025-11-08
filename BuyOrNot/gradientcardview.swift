@@ -14,35 +14,43 @@ struct GradientCardView: View {
     var colors: [Color]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(.white)
-                    .frame(width: 60, height: 60)
-                Image(systemName: systemImage)
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.purple)
-            }
+        ZStack(alignment: .topLeading) {
+            // 背景
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(colors: colors,
+                                   startPoint: .topLeading,
+                                   endPoint: .bottomTrailing)
+                )
             
+            // 左上角图标
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.9))
+                .frame(width: 46, height: 46)
+                .overlay(
+                    Image(systemName: systemImage)
+                        .foregroundStyle(.purple)
+                        .font(.system(size: 20, weight: .bold))
+                )
+                .padding(.top, 14)
+                .padding(.leading, 14)
+            
+            // 文本
             VStack(alignment: .leading, spacing: 4) {
+                Spacer().frame(height: 60)   // 给图标让位置
                 Text(title)
                     .font(.headline)
                     .foregroundStyle(.black.opacity(0.8))
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.black.opacity(0.5))
                 }
+                Spacer()
             }
-            
-            Spacer()
+            .padding(14)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 160)
-        .background(
-            LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-        )
-        .cornerRadius(30)
-        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+        // 固定高度让两个卡片对齐
+        .frame(height: 150)
     }
 }
