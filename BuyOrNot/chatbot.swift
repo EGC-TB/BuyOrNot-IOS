@@ -6,7 +6,7 @@ protocol ChatService {
     func send(message: String, image: UIImage?, for decision: Decision, messages: [ChatMessage], userId: String?) async throws -> String
 }
 
-private let GOOGLE_API_KEY = "AIzaSyCgPDTgzIu1P3yjL4AW2pRy-762ghUJ4vM"
+private let GOOGLE_API_KEY = "AIzaSyAqNYVUaOvVI73AC6tmZKVONBLrokoIM1w"
 
 struct GoogleChatService: ChatService {
     func send(message: String, image: UIImage?, for decision: Decision, messages: [ChatMessage], userId: String?) async throws -> String {
