@@ -160,6 +160,7 @@ struct ChatBotView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var conversationId: UUID?
     @State private var isLoadingConversation = false
+    @FocusState private var isTextFieldFocused: Bool
     
     // RAG服务（延迟初始化）
     @State private var ragService: RAGService?
@@ -420,6 +421,9 @@ struct ChatBotView: View {
             }
             
             TextField("Type your answer...", text: $inputText, axis: .vertical)
+                .focused($isTextFieldFocused)
+                .autocorrectionDisabled(false)
+                .textInputAutocapitalization(.sentences)
                 .padding(12)
                 .background(Color(uiColor: .secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 40))
@@ -473,10 +477,29 @@ struct ChatBotView: View {
         // 如果文本和图片都为空，不发送
         guard !text.isEmpty || imageToSend != nil else { return }
         
-        // 清空输入
+        // 先取消焦点，避免键盘自动更正警告
+        isTextFieldFocused = false
+        
+        // 清空输入字段 - 使用多个方法确保清空
+        // 方法1: 立即在主线程清空
         inputText = ""
         selectedImage = nil
         selectedPhotoItem = nil
+        
+        // 方法2: 在下一个运行循环再次确保清空（防止某些情况下未清空）
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
+            // 再次确保清空（如果由于某种原因还未清空）
+            if !inputText.isEmpty {
+                inputText = ""
+            }
+            if selectedImage != nil {
+                selectedImage = nil
+            }
+            if selectedPhotoItem != nil {
+                selectedPhotoItem = nil
+            }
+        }
         
         // 添加用户消息
         let userMessage = ChatMessage(role: .user, text: text.isEmpty ? "Here's an image" : text, image: imageToSend)
