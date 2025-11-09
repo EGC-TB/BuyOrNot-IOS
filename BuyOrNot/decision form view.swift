@@ -15,7 +15,7 @@ struct DecisionFormView: View {
     @State private var isProcessingImage = false
     @State private var recognitionError: String?
     
-    private let recognitionService = ImageRecognitionService(apiKey: "AIzaSyDPc9Lo6WiYgkXaFCgjKMaX_NEQ7gl4-6g")
+    private let recognitionService = ImageRecognitionService(apiKey: "AIzaSyCgPDTgzIu1P3yjL4AW2pRy-762ghUJ4vM")
     
     var onCreate: (Decision, UIImage?) -> Void
     
