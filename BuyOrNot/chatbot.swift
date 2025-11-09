@@ -85,6 +85,11 @@ struct GoogleChatService: ChatService {
         ]
 
         let body = try JSONSerialization.data(withJSONObject: payload)
+        
+        // 调试日志
+        print("📤 Sending request to: \(url.absoluteString)")
+        print("📤 Payload size: \(body.count) bytes")
+        print("📤 Parts count: \(parts.count)")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -93,12 +98,45 @@ struct GoogleChatService: ChatService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        print("📥 Received response: \(data.count) bytes")
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(domain: "APIError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
         }
+        
+        // 检查状态码
+        guard httpResponse.statusCode == 200 else {
+            // 尝试解析错误信息
+            var errorMessage = "Server returned status code \(httpResponse.statusCode)"
+            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = errorData["error"] as? [String: Any] {
+                if let message = error["message"] as? String {
+                    errorMessage = message
+                } else if let status = error["status"] as? String {
+                    errorMessage = status
+                }
+                print("❌ API Error: \(error)")
+            } else if let responseString = String(data: data, encoding: .utf8) {
+                print("❌ API Error Response: \(responseString)")
+                errorMessage = "Error: \(responseString.prefix(200))"
+            }
+            throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        }
 
-        let result = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        // 解析响应
+        guard let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("❌ Failed to parse response: \(responseString)")
+            }
+            throw NSError(domain: "ParseError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse server response"])
+        }
+
+        // 检查是否有错误字段
+        if let error = result["error"] as? [String: Any],
+           let message = error["message"] as? String {
+            print("❌ API returned error: \(error)")
+            throw NSError(domain: "APIError", code: -1, userInfo: [NSLocalizedDescriptionKey: message])
+        }
 
         guard
             let candidates = result["candidates"] as? [[String: Any]],
@@ -106,7 +144,8 @@ struct GoogleChatService: ChatService {
             let parts = content["parts"] as? [[String: Any]],
             let text = parts.first?["text"] as? String
         else {
-            throw NSError(domain: "ParseError", code: -1)
+            print("❌ Failed to parse response structure. Result: \(result)")
+            throw NSError(domain: "ParseError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract text from response"])
         }
 
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
