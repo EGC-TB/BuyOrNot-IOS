@@ -45,8 +45,8 @@ struct GoogleChatService: ChatService {
         You are a friendly personal finance advisor helping the user decide whether to buy a product. Respond in a conversational, middle-length format (about two sentences) — concise, polite, and direct. Use the user's financial profile and goals to guide your reasoning. Ask thoughtful questions about whether the purchase is necessary, aligns with their goals, and reflects genuine needs rather than impulse. Avoid giving direct commands; instead, help the user reach their own decision logically. When asked to make a decision, base it on the user's information and recent conversation context, and give a concrete answer (Buy Or Not). Only respond to topics relevant to their financial situation and goals, refuse to play other roles.
         """
         
-        let systemPrompt = ragContextText.isEmpty 
-            ? baseSystemPrompt 
+        let systemPrompt = ragContextText.isEmpty
+            ? baseSystemPrompt
             : "\(baseSystemPrompt)\n\n\(ragContextText)"
 
         // 构建parts数组
@@ -565,19 +565,19 @@ private struct MessageBubble: View {
                 Text(message.text)
                     .padding(14)
                     .background(
-                        message.role == .assistant 
+                        message.role == .assistant
                             ? Color(uiColor: .systemBackground)
                             : Color.blue
                     )
                     .foregroundStyle(
-                        message.role == .assistant 
+                        message.role == .assistant
                             ? Color.primary
                             : .white
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .shadow(
-                        color: message.role == .assistant 
-                            ? Color.primary.opacity(0.04) 
+                        color: message.role == .assistant
+                            ? Color.primary.opacity(0.04)
                             : .clear,
                         radius: 3,
                         x: 0,
