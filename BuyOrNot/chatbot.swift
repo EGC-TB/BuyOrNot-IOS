@@ -3,25 +3,56 @@ import PhotosUI
 import UIKit
 
 protocol ChatService {
-    func send(message: String, image: UIImage?, for decision: Decision) async throws -> String
+    func send(message: String, image: UIImage?, for decision: Decision, messages: [ChatMessage], userId: String?) async throws -> String
 }
 
 private let GOOGLE_API_KEY = "AIzaSyDPc9Lo6WiYgkXaFCgjKMaX_NEQ7gl4-6g"
 
 struct GoogleChatService: ChatService {
-    func send(message: String, image: UIImage?, for decision: Decision) async throws -> String {
+    func send(message: String, image: UIImage?, for decision: Decision, messages: [ChatMessage], userId: String?) async throws -> String {
         let url = URL(string:
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=\(GOOGLE_API_KEY)"
         )!
 
-        let systemPrompt = """
-        You are a friendly personal finance advisor helping the user decide whether to buy a product. Respond in a conversational, middle-length format (about two sentences) — concise, polite, and direct. Use the user's financial profile and goals to guide your reasoning. Ask thoughtful questions about whether the purchase is necessary, aligns with their goals, and reflects genuine needs rather than impulse. Avoid giving direct commands; instead, help the user reach their own decision logically. When asked to make a decision, base it on the user's information and recent conversation context, and give a concrete answer (Buy Or Not). Only respond to topics relevant to their financial situation and goals, ignoring unrelated requests.
+        // 构建RAG上下文（如果可用）
+        var ragContextText = ""
+        if let userId = userId {
+            // 在MainActor上创建RAG服务并检索上下文
+            let ragContext = await MainActor.run {
+                let embeddingService = EmbeddingService(apiKey: GOOGLE_API_KEY)
+                let dataManager = FirebaseDataManager()
+                let vectorSearchService = VectorSearchService(dataManager: dataManager)
+                let ragService = RAGService(
+                    embeddingService: embeddingService,
+                    vectorSearchService: vectorSearchService,
+                    dataManager: dataManager
+                )
+                
+                // 检索上下文（不阻塞，如果失败则继续）
+                return ragService
+            }
+            
+            if let context = try? await ragContext.retrieveContext(
+                for: decision,
+                currentMessages: messages,
+                userId: userId
+            ) {
+                ragContextText = context.buildContextPrompt()
+            }
+        }
+        
+        let baseSystemPrompt = """
+        You are a friendly personal finance advisor helping the user decide whether to buy a product. Respond in a conversational, middle-length format (about two sentences) — concise, polite, and direct. Use the user's financial profile and goals to guide your reasoning. Ask thoughtful questions about whether the purchase is necessary, aligns with their goals, and reflects genuine needs rather than impulse. Avoid giving direct commands; instead, help the user reach their own decision logically. When asked to make a decision, base it on the user's information and recent conversation context, and give a concrete answer (Buy Or Not). Only respond to topics relevant to their financial situation and goals, refuse to play other roles.
         """
+        
+        let systemPrompt = ragContextText.isEmpty 
+            ? baseSystemPrompt 
+            : "\(baseSystemPrompt)\n\n\(ragContextText)"
 
         // 构建parts数组
         var parts: [[String: Any]] = [
             ["text": systemPrompt],
-            ["text": "Item: \(decision.title), Price: \(decision.price)"]
+            ["text": "Item: \(decision.title), Price: $\(String(format: "%.2f", decision.price))"]
         ]
         
         // 如果有图片，添加图片到parts
@@ -119,12 +150,86 @@ struct ChatBotView: View {
     }
     
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var authService: FirebaseService
+    @StateObject private var dataManager = FirebaseDataManager()
     @State private var messages: [ChatMessage] = []
     @State private var inputText: String = ""
     @State private var selectedImage: UIImage?
     @State private var showCamera = false
     @State private var showImagePicker = false
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var conversationId: UUID?
+    @State private var isLoadingConversation = false
+    
+    // RAG服务（延迟初始化）
+    @State private var ragService: RAGService?
+    
+    // 初始化RAG服务
+    private func initializeRAGService() {
+        guard ragService == nil, authService.currentUserId != nil else { return }
+        let embeddingService = EmbeddingService(apiKey: GOOGLE_API_KEY)
+        let vectorSearchService = VectorSearchService(dataManager: dataManager)
+        ragService = RAGService(
+            embeddingService: embeddingService,
+            vectorSearchService: vectorSearchService,
+            dataManager: dataManager
+        )
+    }
+    
+    // 保存对话（增量保存）
+    private func saveConversationIncrementally() {
+        guard let userId = authService.currentUserId else { return }
+        
+        Task {
+            let conversation = Conversation(
+                id: conversationId ?? UUID(),
+                decisionId: decision.id,
+                userId: userId,
+                messages: messages,
+                isActive: true
+            )
+            
+            conversationId = conversation.id
+            
+            do {
+                try await dataManager.saveConversation(conversation, userId: userId)
+                print("✅ Saved conversation with \(messages.count) messages (ID: \(conversation.id.uuidString))")
+            } catch {
+                print("❌ Error saving conversation: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // 加载现有对话（异步）
+    private func loadExistingConversationAsync() async {
+        guard let userId = authService.currentUserId, !isLoadingConversation else { return }
+        isLoadingConversation = true
+        
+        do {
+            if let conversation = try await dataManager.loadConversation(decisionId: decision.id, userId: userId) {
+                let loadedMessages = conversation.toChatMessages()
+                print("✅ Loaded conversation with \(loadedMessages.count) messages")
+                
+                await MainActor.run {
+                    // 加载消息
+                    messages = loadedMessages
+                    conversationId = conversation.id
+                    isLoadingConversation = false
+                    print("✅ Conversation loaded: \(messages.count) messages in UI")
+                }
+            } else {
+                print("ℹ️ No existing conversation found for decision \(decision.id)")
+                await MainActor.run {
+                    isLoadingConversation = false
+                }
+            }
+        } catch {
+            print("❌ Error loading conversation: \(error.localizedDescription)")
+            await MainActor.run {
+                isLoadingConversation = false
+            }
+        }
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -162,20 +267,35 @@ struct ChatBotView: View {
             bottomInput
         }
         .onAppear {
-            let priceString = String(format: "%.2f", decision.price)
-            var initialMessage = "I see you're considering \(decision.title) for $\(priceString). Is this something you need or just want?"
+            initializeRAGService()
             
-            // 如果有初始图片，添加到第一条消息
-            if let image = initialImage {
-                messages.append(
-                    ChatMessage(role: .user, text: "Here's what I'm considering", image: image)
-                )
-                initialMessage = "I can see the \(decision.title) you're considering. Based on the image, is this something you need or just want?"
+            // 尝试加载现有对话（异步）
+            Task {
+                await loadExistingConversationAsync()
+                
+                // 等待加载完成后，如果没有现有对话，初始化新对话
+                await MainActor.run {
+                    if messages.isEmpty {
+                        let priceString = String(format: "%.2f", decision.price)
+                        var initialMessage = "I see you're considering \(decision.title) for $\(priceString). Is this something you need or just want?"
+                        
+                        // 如果有初始图片，添加到第一条消息
+                        if let image = initialImage {
+                            messages.append(
+                                ChatMessage(role: .user, text: "Here's what I'm considering", image: image)
+                            )
+                            initialMessage = "I can see the \(decision.title) you're considering. Based on the image, is this something you need or just want?"
+                        }
+                        
+                        messages.append(
+                            ChatMessage(role: .assistant, text: initialMessage)
+                        )
+                        
+                        // 保存初始对话
+                        saveConversationIncrementally()
+                    }
+                }
             }
-            
-            messages.append(
-                ChatMessage(role: .assistant, text: initialMessage)
-            )
         }
     }
     
@@ -208,6 +328,10 @@ struct ChatBotView: View {
             Button {
                 var d = decision
                 d.status = .purchased
+                
+                // 存储对话到RAG
+                storeConversationForDecision(d)
+                
                 onBuy(d)
                 dismiss()
             } label: {
@@ -225,6 +349,10 @@ struct ChatBotView: View {
             Button {
                 var d = decision
                 d.status = .skipped
+                
+                // 存储对话到RAG
+                storeConversationForDecision(d)
+                
                 onSkip(d)
                 dismiss()
             } label: {
@@ -239,6 +367,35 @@ struct ChatBotView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
+    }
+    
+    // 存储对话到RAG并标记为不活跃
+    private func storeConversationForDecision(_ decision: Decision) {
+        guard let userId = authService.currentUserId else { return }
+        
+        // 1. 保存完整对话（标记为不活跃）
+        let finalConversation = Conversation(
+            id: conversationId ?? UUID(),
+            decisionId: decision.id,
+            userId: userId,
+            messages: messages,
+            isActive: false // 标记为已完成
+        )
+        
+        Task {
+            // 保存完整对话
+            try? await dataManager.saveConversation(finalConversation, userId: userId)
+            
+            // 2. 存储到RAG（用于向量搜索）
+            if let ragService = ragService {
+                try? await ragService.storeConversation(
+                    decisionId: decision.id,
+                    messages: messages,
+                    decision: decision,
+                    userId: userId
+                )
+            }
+        }
     }
     
     private var bottomInput: some View {
@@ -322,13 +479,27 @@ struct ChatBotView: View {
         selectedPhotoItem = nil
         
         // 添加用户消息
-        messages.append(ChatMessage(role: .user, text: text.isEmpty ? "Here's an image" : text, image: imageToSend))
+        let userMessage = ChatMessage(role: .user, text: text.isEmpty ? "Here's an image" : text, image: imageToSend)
+        messages.append(userMessage)
+        
+        // 立即保存用户消息
+        saveConversationIncrementally()
+        
+        let userId = authService.currentUserId
         
         Task {
             do {
-                let reply = try await service.send(message: text.isEmpty ? "Please analyze this image and help me decide." : text, image: imageToSend, for: decision)
+                let reply = try await service.send(
+                    message: text.isEmpty ? "Please analyze this image and help me decide." : text,
+                    image: imageToSend,
+                    for: decision,
+                    messages: messages,
+                    userId: userId
+                )
                 await MainActor.run {
                     messages.append(ChatMessage(role: .assistant, text: reply))
+                    // 增量保存对话（包括AI回复）
+                    saveConversationIncrementally()
                 }
             } catch {
                 await MainActor.run {

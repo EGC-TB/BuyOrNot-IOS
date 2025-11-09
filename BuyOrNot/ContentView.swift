@@ -81,6 +81,7 @@ struct RootView: View {
                         applyDecisionChange(updated, newStatus: .skipped)
                     }
                 )
+                .environmentObject(authService)
             }
             .onAppear {
                 if !hasLoadedInitialData {

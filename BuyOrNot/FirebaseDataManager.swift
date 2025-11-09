@@ -201,6 +201,267 @@ class FirebaseDataManager: ObservableObject {
         return document.data()?["savedAmount"] as? Double ?? 0.0
     }
     
+    // MARK: - Conversations (Full Storage)
+    
+    // 完整对话的collection
+    private func conversationsCollection(userId: String) -> CollectionReference {
+        return db.collection("users").document(userId).collection("conversations")
+    }
+    
+    // 保存或更新对话
+    func saveConversation(_ conversation: Conversation, userId: String) async throws {
+        // 构建消息数组，确保正确处理 nil 值
+        var messagesArray: [[String: Any]] = []
+        for msg in conversation.messages {
+            var messageDict: [String: Any] = [
+                "id": msg.id,
+                "role": msg.role,
+                "text": msg.text,
+                "time": Timestamp(date: msg.time)
+            ]
+            
+            // 只有当 imageData 不为 nil 时才添加
+            if let imageData = msg.imageData {
+                messageDict["imageData"] = imageData
+            }
+            
+            messagesArray.append(messageDict)
+        }
+        
+        let conversationData: [String: Any] = [
+            "id": conversation.id.uuidString,
+            "decisionId": conversation.decisionId.uuidString,
+            "userId": conversation.userId,
+            "messages": messagesArray,
+            "lastUpdated": Timestamp(date: conversation.lastUpdated),
+            "isActive": conversation.isActive
+        ]
+        
+        print("💾 Saving conversation: \(conversation.id.uuidString) with \(conversation.messages.count) messages")
+        print("📸 Messages with images: \(conversation.messages.filter { $0.imageData != nil }.count)")
+        
+        // 使用 setData 而不是 merge，因为数组需要完全替换
+        try await conversationsCollection(userId: userId)
+            .document(conversation.id.uuidString)
+            .setData(conversationData, merge: false)
+        
+        print("✅ Successfully saved conversation: \(conversation.id.uuidString)")
+    }
+    
+    // 加载对话（根据决策ID）
+    func loadConversation(decisionId: UUID, userId: String) async throws -> Conversation? {
+        let query = conversationsCollection(userId: userId)
+            .whereField("decisionId", isEqualTo: decisionId.uuidString)
+            .limit(to: 1)
+        
+        let snapshot = try await query.getDocuments()
+        
+        guard let doc = snapshot.documents.first else {
+            print("ℹ️ No conversation document found for decisionId: \(decisionId.uuidString)")
+            return nil
+        }
+        
+        let data = doc.data()
+        print("📝 Found conversation document: \(doc.documentID)")
+        
+        guard let conversation = try parseConversation(from: data) else {
+            print("⚠️ Failed to parse conversation from document data")
+            return nil
+        }
+        
+        return conversation
+    }
+    
+    // 加载所有对话
+    func loadAllConversations(userId: String) async throws -> [Conversation] {
+        let snapshot = try await conversationsCollection(userId: userId)
+            .order(by: "lastUpdated", descending: true)
+            .getDocuments()
+        
+        return snapshot.documents.compactMap { doc in
+            try? parseConversation(from: doc.data())
+        }
+    }
+    
+    // 解析对话数据
+    private func parseConversation(from data: [String: Any]) throws -> Conversation? {
+        guard let idString = data["id"] as? String,
+              let id = UUID(uuidString: idString),
+              let decisionIdString = data["decisionId"] as? String,
+              let decisionId = UUID(uuidString: decisionIdString),
+              let userId = data["userId"] as? String,
+              let messagesData = data["messages"] as? [[String: Any]],
+              let lastUpdatedTimestamp = data["lastUpdated"] as? Timestamp,
+              let isActive = data["isActive"] as? Bool else {
+            return nil
+        }
+        
+        let messages = messagesData.compactMap { msgData -> CodableChatMessage? in
+            guard let id = msgData["id"] as? String,
+                  let role = msgData["role"] as? String,
+                  let text = msgData["text"] as? String,
+                  let timeTimestamp = msgData["time"] as? Timestamp else {
+                print("⚠️ Failed to parse message: missing required fields")
+                return nil
+            }
+            
+            // imageData 可以为 nil（如果消息中没有图片，这个字段可能不存在）
+            let imageData = msgData["imageData"] as? String
+            
+            if imageData != nil {
+                print("📸 Found image data for message: \(id)")
+            }
+            
+            return CodableChatMessage(
+                id: id,
+                role: role,
+                text: text,
+                imageData: imageData,
+                time: timeTimestamp.dateValue()
+            )
+        }
+        
+        let messagesWithImages = messages.filter { $0.imageData != nil }.count
+        print("📝 Parsed \(messages.count) messages from Firestore (\(messagesWithImages) with images)")
+        
+        return Conversation(
+            id: id,
+            decisionId: decisionId,
+            userId: userId,
+            codableMessages: messages,
+            lastUpdated: lastUpdatedTimestamp.dateValue(),
+            isActive: isActive
+        )
+    }
+    
+    // MARK: - Conversation Embeddings (RAG)
+    
+    // 对话嵌入的collection
+    private func conversationEmbeddingsCollection(userId: String) -> CollectionReference {
+        return db.collection("users").document(userId).collection("conversationEmbeddings")
+    }
+    
+    // 保存对话嵌入
+    func saveConversationEmbedding(_ embedding: ConversationEmbedding, userId: String) async throws {
+        let embeddingData: [String: Any] = [
+            "id": embedding.id.uuidString,
+            "decisionId": embedding.decisionId.uuidString,
+            "userId": embedding.userId,
+            "embedding": embedding.embedding.map { Double($0) }, // Firestore doesn't support Float arrays
+            "text": embedding.text,
+            "summary": embedding.summary,
+            "timestamp": Timestamp(date: embedding.timestamp)
+        ]
+        
+        try await conversationEmbeddingsCollection(userId: userId)
+            .document(embedding.id.uuidString)
+            .setData(embeddingData)
+    }
+    
+    // 加载所有对话嵌入（用于向量搜索）
+    func loadConversationEmbeddings(userId: String, limit: Int = 100) async throws -> [ConversationEmbedding] {
+        let query = conversationEmbeddingsCollection(userId: userId)
+            .order(by: "timestamp", descending: true)
+            .limit(to: limit)
+        
+        let snapshot = try await query.getDocuments()
+        
+        return snapshot.documents.compactMap { doc -> ConversationEmbedding? in
+            let data = doc.data()
+            guard let idString = data["id"] as? String,
+                  let id = UUID(uuidString: idString),
+                  let decisionIdString = data["decisionId"] as? String,
+                  let decisionId = UUID(uuidString: decisionIdString),
+                  let userId = data["userId"] as? String,
+                  let embeddingDoubles = data["embedding"] as? [Double],
+                  let text = data["text"] as? String,
+                  let summary = data["summary"] as? String,
+                  let timestamp = data["timestamp"] as? Timestamp else {
+                return nil
+            }
+            
+            let embedding = embeddingDoubles.map { Float($0) }
+            
+            return ConversationEmbedding(
+                id: id,
+                decisionId: decisionId,
+                userId: userId,
+                embedding: embedding,
+                text: text,
+                summary: summary,
+                timestamp: timestamp.dateValue()
+            )
+        }
+    }
+    
+    // MARK: - User Preferences (RAG)
+    
+    // 用户偏好的document
+    private func userPreferencesDocument(userId: String) -> DocumentReference {
+        return db.collection("users").document(userId).collection("preferences").document("userPreferences")
+    }
+    
+    // 保存用户偏好
+    func saveUserPreferences(_ preferences: UserPreferences, userId: String) async throws {
+        let preferencesData: [String: Any] = [
+            "userId": preferences.userId,
+            "preferredCategories": preferences.preferredCategories,
+            "averagePriceRange": [
+                "min": preferences.averagePriceRange.min,
+                "max": preferences.averagePriceRange.max
+            ],
+            "decisionPatterns": [
+                "totalDecisions": preferences.decisionPatterns.totalDecisions,
+                "boughtCount": preferences.decisionPatterns.boughtCount,
+                "skippedCount": preferences.decisionPatterns.skippedCount,
+                "averagePriceBought": preferences.decisionPatterns.averagePriceBought,
+                "averagePriceSkipped": preferences.decisionPatterns.averagePriceSkipped
+            ],
+            "lastUpdated": Timestamp(date: preferences.lastUpdated)
+        ]
+        
+        try await userPreferencesDocument(userId: userId)
+            .setData(preferencesData, merge: true)
+    }
+    
+    // 加载用户偏好
+    func loadUserPreferences(userId: String) async throws -> UserPreferences? {
+        let document = try await userPreferencesDocument(userId: userId).getDocument()
+        
+        guard let data = document.data(),
+              let userId = data["userId"] as? String,
+              let preferredCategories = data["preferredCategories"] as? [String],
+              let priceRangeData = data["averagePriceRange"] as? [String: Double],
+              let min = priceRangeData["min"],
+              let max = priceRangeData["max"],
+              let patternsData = data["decisionPatterns"] as? [String: Any],
+              let totalDecisions = patternsData["totalDecisions"] as? Int,
+              let boughtCount = patternsData["boughtCount"] as? Int,
+              let skippedCount = patternsData["skippedCount"] as? Int,
+              let averagePriceBought = patternsData["averagePriceBought"] as? Double,
+              let averagePriceSkipped = patternsData["averagePriceSkipped"] as? Double,
+              let lastUpdatedTimestamp = data["lastUpdated"] as? Timestamp else {
+            return nil
+        }
+        
+        let priceRange = PriceRange(min: min, max: max)
+        let decisionPatterns = DecisionPatterns(
+            totalDecisions: totalDecisions,
+            boughtCount: boughtCount,
+            skippedCount: skippedCount,
+            averagePriceBought: averagePriceBought,
+            averagePriceSkipped: averagePriceSkipped
+        )
+        
+        return UserPreferences(
+            userId: userId,
+            preferredCategories: preferredCategories,
+            averagePriceRange: priceRange,
+            decisionPatterns: decisionPatterns,
+            lastUpdated: lastUpdatedTimestamp.dateValue()
+        )
+    }
+    
     // MARK: - Cleanup
     // 移除所有listener
     func removeAllListeners() {

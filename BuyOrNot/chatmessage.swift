@@ -14,11 +14,19 @@ struct ChatMessage: Identifiable, Hashable {
         case assistant
     }
     
-    var id = UUID()
+    var id: UUID
     var role: Role
     var text: String
     var image: UIImage? = nil
-    var time: Date = .now
+    var time: Date
+    
+    init(id: UUID = UUID(), role: Role, text: String, image: UIImage? = nil, time: Date = Date()) {
+        self.id = id
+        self.role = role
+        self.text = text
+        self.image = image
+        self.time = time
+    }
     
     // Hashable conformance - ignore image in hash
     func hash(into hasher: inout Hasher) {
