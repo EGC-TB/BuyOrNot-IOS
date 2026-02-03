@@ -1,3 +1,4 @@
+![image](https://github.com/EGC-TB/BuyOrNot-IOS/blob/main/BuyOrNot.png)
 # BuyOrNot
 
 BuyOrNot is a smart spending decision assistant iOS app built with SwiftUI and Firebase. It helps users make informed purchase decisions through an AI-powered chat interface, tracks expenses, and visualizes savings.
